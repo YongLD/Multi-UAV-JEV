@@ -1,0 +1,26 @@
+Multi-UAV JEV
+Copyright 2026 YongLD and contributors
+
+This distribution includes code derived from RomanSlack/jev-drone:
+https://github.com/RomanSlack/jev-drone
+Copyright (c) 2026 the jev-drone authors, MIT License.
+The full original license is preserved in licenses/jev-drone-MIT.txt.
+sim/flight.py and sim/hud.py retain upstream control and HUD utilities.
+The pursuit scene, observation tracker, six-action policy, browser controls,
+and episode logging extend that base. Apache-2.0 applies to the new project
+contributions; upstream MIT terms continue to apply to the inherited portions.
+
+sim/urban_assets includes twelve modified OBJ meshes and a palette texture
+from Kenney City Kit Commercial 2.1 (CC0). Mesh coordinates are converted
+from Y-up to Z-up. Original license: sim/urban_assets/LICENSE.txt.
+https://kenney.nl/assets/city-kit-commercial
+
+setup.sh separately downloads the Skydio X2 description and meshes from
+Google DeepMind MuJoCo Menagerie (Apache-2.0). Those downloaded files retain
+their own LICENSE and README. They are not bundled in this repository.
+https://github.com/google-deepmind/mujoco_menagerie/tree/main/skydio_x2
+
+NeoHorse-Jev-4B weights and native runtime are external dependencies from
+TokenRhythm. They are not redistributed here. Preserve their own licenses
+and third-party notices when downloading or redistributing them.
+https://huggingface.co/TokenRhythm/NeoHorse-Jev-4B

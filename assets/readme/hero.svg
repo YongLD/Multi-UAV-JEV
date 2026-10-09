@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Multi-UAV JEV — Observe. Decide. Fly.</title>
+  <desc id="desc">An experimental MuJoCo drone pursuit platform. Camera-derived state feeds a Jev decision model; its selected action becomes flight controller setpoints. Orange and red tracking rings echo the real simulation HUD.</desc>
+  <rect width="1200" height="360" rx="18" fill="#101d28"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <text x="54" y="58" font-size="20" letter-spacing="3" fill="#69cee7">CAMERA OBSERVATIONS · TYPED DECISIONS · MUJOCO</text>
+    <text x="50" y="150" font-size="83" font-weight="700" letter-spacing="-3" fill="#edf5f7">Multi-UAV JEV</text>
+    <text x="54" y="201" font-size="31" fill="#a0b2bc">Observe. Decide. Fly.</text>
+    <path d="M54 239H1146" stroke="#344955" stroke-width="1"/>
+    <text x="54" y="287" font-size="25" fill="#edf5f7">Camera state</text>
+    <path d="M235 279H298m-10-7 10 7-10 7" fill="none" stroke="#69cee7" stroke-width="2"/>
+    <text x="322" y="287" font-size="25" fill="#69cee7">Jev choice</text>
+    <path d="M472 279H538m-10-7 10 7-10 7" fill="none" stroke="#69cee7" stroke-width="2"/>
+    <text x="562" y="287" font-size="25" fill="#edf5f7">Motor control</text>
+    <text x="54" y="326" font-size="18" fill="#a0b2bc">Current release: 1 pursuer × 1 evader · six actions · complete decision logs</text>
+  </g>
+  <g id="pursuit-observation" fill="none" stroke-width="2">
+    <path d="M874 191Q991 206 1033 147T1113 83" stroke="#69cee7" stroke-dasharray="5 7" opacity=".6"/>
+    <g transform="translate(899 176)" stroke="#ffb552">
+      <circle r="39" opacity=".24"/><circle r="31" opacity=".56"/><circle r="24"/>
+      <path d="M-34-21V-34H-21M21-34H34V-21M34 21V34H21M-21 34H-34V21"/>
+      <path d="M-12 3 0-15 12 3 0-2Z" fill="#ffb552" stroke="none"/>
+    </g>
+    <g transform="translate(1096 94)" stroke="#fc817d">
+      <circle r="31" opacity=".25"/><circle r="23" opacity=".6"/>
+      <path d="M-26-15V-26H-15M15-26H26V-15M26 15V26H15M-15 26H-26V15"/>
+      <path d="M-9 2 0-10 9 2 0-1Z" fill="#fc817d" stroke="none"/>
+    </g>
+  </g>
+</svg>

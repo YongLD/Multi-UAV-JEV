@@ -1,0 +1,28 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Environments, downloaded models and simulation output
+.venv*/
+models/
+runs*/
+sim/duel_live/
+sim/urban_live/
+*.jsonl
+sim/mujoco_menagerie/
+sim/assets
+sim/city.xml
+sim/city_urban.xml
+sim/urban_assets/asphalt.png
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store
+*.mp4
+*.safetensors
+*.pt
+*.pth
+*.onnx
+*.sqlite*

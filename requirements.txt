@@ -1,0 +1,5 @@
+mujoco==3.14.0
+numpy>=1.26
+pillow>=10.0
+imageio>=2.34
+imageio-ffmpeg>=0.4

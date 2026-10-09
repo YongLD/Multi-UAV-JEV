@@ -1,0 +1,18 @@
+{
+  "action": {
+    "type": "choice",
+    "instructions": {
+      "goal": "Catch E-01 and obtain 10 valid simulated hits using onboard observations.",
+      "rules": "Choose ONE action. Avoid predicted contact and unknown space. Use pursuit_bearing_deg for future heading, predicted_height_1s_m for early altitude alignment, and aim for execution-time firing: positive bearing=LEFT, positive height=UP. Fire first when visible, range<=25m, abs(bearing)<=40deg, abs(height)<=1m, cooldown=0. Use camera trajectory history and 1/2/3s forecasts to anticipate, not just chase the latest point. Otherwise close and align: turn toward target; correct current OR predicted height even while offside; go forward when aligned. During occlusion <=3s follow estimated aim if track_confidence>0.3; otherwise scan observed open air. If track_status=lost, search LEFT/RIGHT only; do not descend, climb, fire or go forward for search. Height escape is only for imminent_contact=true. Speed/braking is controller-owned; rain slows flight.",
+      "effects": "left/right turn 15deg; climb/descend change altitude 2m; forward resets heading and altitude to current pose; fire preserves flight commands."
+    },
+    "criteria": {
+      "turn_left": "pursuit_bearing_deg>+12, OR track_status=lost and left is open. Continue left scanning if safe. Also left escape from imminent contact.",
+      "turn_right": "pursuit_bearing_deg<-12, OR track_status=lost and right is open. Continue right scanning if safe. Also right escape from imminent contact.",
+      "climb": "Require aim!=null, (aim.height_m>+1 OR predicted_height_1s_m>+1), upper path clear. Or imminent_contact=true and upward escape clear. Never for lost-target search.",
+      "descend": "Require aim!=null, (aim.height_m<-1 OR predicted_height_1s_m<-1), lower path clear. Or imminent_contact=true and downward escape clear. Never for lost-target search.",
+      "forward": "abs(pursuit_bearing_deg)<=12 and abs(aim.height_m)<=1 and abs(predicted_height_1s_m)<=1, path clear. Fly current heading/height; cancel earlier turn/climb commands.",
+      "fire": "PRIORITY when target visible, aim.range_m<=25, abs(aim.bearing_deg)<=40, abs(aim.height_m)<=1, cooldown=0. Otherwise choose alignment/pursuit."
+    }
+  }
+}

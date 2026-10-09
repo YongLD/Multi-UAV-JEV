@@ -1,0 +1,62 @@
+{
+  "building-a": {
+    "width": 0.8835879,
+    "depth": 0.94,
+    "height": 1.293
+  },
+  "building-b": {
+    "width": 0.9700001,
+    "depth": 0.94,
+    "height": 1.293
+  },
+  "building-c": {
+    "width": 0.8835879,
+    "depth": 1.0900001000000001,
+    "height": 0.893
+  },
+  "building-f": {
+    "width": 0.84,
+    "depth": 1.0300002,
+    "height": 1.693
+  },
+  "building-i": {
+    "width": 1.2400001,
+    "depth": 1.302,
+    "height": 1.68
+  },
+  "building-j": {
+    "width": 2.083588,
+    "depth": 1.34,
+    "height": 1.693
+  },
+  "building-l": {
+    "width": 1.37,
+    "depth": 1.402,
+    "height": 2.27
+  },
+  "building-n": {
+    "width": 2.32,
+    "depth": 1.82,
+    "height": 2.48
+  },
+  "building-skyscraper-a": {
+    "width": 1.3599998,
+    "depth": 1.3600002,
+    "height": 2.88
+  },
+  "building-skyscraper-b": {
+    "width": 1.3599998,
+    "depth": 1.3599999,
+    "height": 4.48
+  },
+  "building-skyscraper-d": {
+    "width": 1.2799998,
+    "depth": 1.3878913000000002,
+    "height": 5.469999
+  },
+  "building-skyscraper-e": {
+    "width": 1.2949997999999998,
+    "depth": 1.2420003,
+    "height": 4.08
+  }
+}
