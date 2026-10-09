@@ -19,9 +19,11 @@ A research platform for camera-based UAV pursuit in a textured MuJoCo city. Watc
 
 **This release is a one-pursuer / one-evader baseline.** Multi-UAV coordination is planned; the current simulator does not yet implement a cooperative fleet.
 
-![Animated real simulation replay: Skydio X2 pursuit among city buildings, flight instruments, onboard RGB and depth, six-action probabilities, and a district overview](assets/readme/simulation.gif)
+<p align="center">
+  <img src="assets/readme/simulation-hit.gif" width="760" alt="Real pursuit replay with successful virtual hits, green HIT indicators and firing effects; onboard RGB/depth, action statistics and overview remain visible">
+</p>
 
-*A five-second excerpt from a real simulation replay, looped. RGB/depth panels, attitude instruments, action statistics and the overview remain visible. [Still image](assets/readme/simulation.jpg).*
+<p align="center"><em>A real replay excerpt with consecutive valid virtual hits and a steady heading. Green HIT indicators and shot effects show successful firing; RGB/depth, instruments, action statistics and the overview remain visible.</em><br><a href="assets/readme/simulation.jpg">Still image</a></p>
 
 ## What you can explore
 

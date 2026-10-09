@@ -13,9 +13,11 @@
 
 **当前开源版本是一架追逐机对一架逃逸机的基线。** 项目面向后续多无人机协同拓展，现阶段尚未实现协同机群。
 
-![真实 MuJoCo 城市追逐回放 GIF：敌我无人机、姿态仪表、RGB 与深度图、六动作概率统计及俯视小地图](assets/readme/simulation.gif)
+<p align="center">
+  <img src="assets/readme/simulation-hit.gif" width="760" alt="真实追逐回放中的连续有效命中：绿色 HIT 提示、命中射线、RGB 与深度图、动作统计和俯视图">
+</p>
 
-*来自真实仿真回放的 5 秒循环片段，保留 RGB/深度图、姿态仪表、动作统计和俯视图。此片段不代表整体成功率。[查看静态图](assets/readme/simulation.jpg)。*
+<p align="center"><em>选取真实回放中航向平稳、连续有效命中的片段：绿色 HIT 提示和射线特效展示成功发射，保留 RGB/深度图、仪表、动作统计和俯视图。此片段不代表整体成功率。</em><br><a href="assets/readme/simulation.jpg">查看静态图</a></p>
 
 ## 能做什么
 
