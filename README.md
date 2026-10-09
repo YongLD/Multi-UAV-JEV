@@ -19,9 +19,9 @@ A research platform for camera-based UAV pursuit in a textured MuJoCo city. Watc
 
 **This release is a one-pursuer / one-evader baseline.** Multi-UAV coordination is planned; the current simulator does not yet implement a cooperative fleet.
 
-![Real simulation frame: two Skydio X2 drones among city buildings, flight instruments, onboard RGB and depth, six-action probabilities, and a district overview](assets/readme/simulation.jpg)
+![Animated real simulation replay: Skydio X2 pursuit among city buildings, flight instruments, onboard RGB and depth, six-action probabilities, and a district overview](assets/readme/simulation.gif)
 
-*A real rendered simulation frame. Orange marks the pursuer; red marks the evader. RGB/depth panels, attitude instruments, action statistics and the overview are retained in the replay.*
+*A five-second excerpt from a real simulation replay, looped. RGB/depth panels, attitude instruments, action statistics and the overview remain visible. [Still image](assets/readme/simulation.jpg).*
 
 ## What you can explore
 
@@ -127,7 +127,7 @@ sim/                  MuJoCo scene, camera perception, Jev client, controller an
 sim/urban_assets/     Small CC0 city meshes, palette and source/license records
 scripts/run.py        Process ownership and continuous episode collection
 docs/                 Setup, observation boundary, policy and data documentation
-assets/readme/        Editable SVG identity and a real simulation screenshot
+assets/readme/        Editable SVG identity, real replay GIF and a still image
 setup.sh              Simulation environment + pinned Skydio X2 asset checkout
 run.sh                Start the viewer and simulation loop
 run_model.sh          Start an installed native NeoHorse decision runtime

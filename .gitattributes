@@ -1,6 +1,7 @@
 * text=auto eol=lf
 *.jpg binary
 *.png binary
+*.gif binary
 *.obj -diff
 sim/urban_assets/* linguist-vendored
 assets/readme/* linguist-documentation
