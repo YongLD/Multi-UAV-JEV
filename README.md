@@ -23,7 +23,7 @@ A research platform for camera-based UAV pursuit in a textured MuJoCo city. Watc
   <img src="assets/readme/simulation-hit.gif" width="760" alt="Real pursuit replay with successful virtual hits, green HIT indicators and firing effects; onboard RGB/depth, action statistics and overview remain visible">
 </p>
 
-<p align="center"><em>A real replay excerpt with consecutive valid virtual hits and a steady heading. Green HIT indicators and shot effects show successful firing; RGB/depth, instruments, action statistics and the overview remain visible.</em><br><a href="assets/readme/simulation.jpg">Still image</a></p>
+<p align="center"><em>A real replay excerpt with consecutive valid virtual hits and a steady heading. Green HIT indicators and shot effects show successful firing; RGB/depth, instruments, action statistics and the overview remain visible.</em></p>
 
 ## What you can explore
 

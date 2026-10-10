@@ -17,7 +17,7 @@
   <img src="assets/readme/simulation-hit.gif" width="760" alt="真实追逐回放中的连续有效命中：绿色 HIT 提示、命中射线、RGB 与深度图、动作统计和俯视图">
 </p>
 
-<p align="center"><em>选取真实回放中航向平稳、连续有效命中的片段：绿色 HIT 提示和射线特效展示成功发射，保留 RGB/深度图、仪表、动作统计和俯视图。此片段不代表整体成功率。</em><br><a href="assets/readme/simulation.jpg">查看静态图</a></p>
+<p align="center"><em>选取真实回放中航向平稳、连续有效命中的片段：绿色 HIT 提示和射线特效展示成功发射，保留 RGB/深度图、仪表、动作统计和俯视图。此片段不代表整体成功率。</em></p>
 
 ## 能做什么
 
