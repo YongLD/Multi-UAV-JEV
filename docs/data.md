@@ -1,6 +1,10 @@
 # Episode collection and future training
 
-`bash run.sh` continuously starts new seeds and archives **every completed episode**, including success, timeout, crash and manual restart. The default success criterion is ten valid hits. Replay selection is independent: ≥5 hits and ≥the retained best, including ties.
+`bash run.sh` continuously starts new seeds and archives **every completed episode**, including success, timeout, crash and manual restart. The default success criterion is thirty team hits. Replay selection is independent: ≥5 hits and top two within the 1/2/4-aircraft group; newer ties win.
+
+## Synchronized replay sets
+
+`runs/live/replay_catalog.json` lists independent 1/2/4 rankings. Immutable `replay_sets/<id>/` folders contain `all.mp4`, per-aircraft `drone_N.mp4` and `frame_times.json`. New recordings capture full instruments at 20 FPS and synchronized 0.05 s simulation timestamps. Sensor/map ages identify their slower refresh. Historical follow-only videos keep their ranking and cannot recover missing sensors. Videos are selected independently of text-case archives. Fleet decisions include drone/role IDs, queue wait and total latency; rescue/self-rescue controller events remain distinct from model choices.
 
 ## Stored files
 
@@ -12,11 +16,11 @@
 | `policy.json` | Resolved instructions, candidate descriptions, action meanings and model/scene parameters. |
 | `summary.json` | Outcome, duration, hits, shots, contact count, executed action counts, model calls/errors and replay eligibility. |
 
-Text logs can grow over long runs; there is no automatic total archive quota. Move or rotate `runs/cases/` when needed. Raw sensor videos/images are not duplicated into every case folder, but `live/` keeps displayed images, a temporary current recording and one qualifying replay. Completed cases do not keep all videos. All output is ignored by Git.
+Text logs can grow over long runs; there is no automatic total archive quota. Move or rotate `runs/cases/` when needed. Raw sensor videos/images are not duplicated into every case folder, but `live/` keeps displayed images, a temporary current recording and up to six qualifying replay sets (two per fleet size). Completed cases do not keep all videos. All output is ignored by Git.
 
 `action_counts` describes **executed** choices. To calculate distributions over all model responses, count raw `decisions.jsonl` action fields and keep errors, abstentions and stale/non-applied responses as separate categories. The viewer shows the latest distribution plus whole-episode executed counts/shares; these are different statistics.
 
-At episode shutdown, an in-flight request is allowed to finish within the client's shutdown wait. Its response is recorded with `applied=false` and `reason="episode ended"`; it does not extend flight or execute another action. An unstarted waiting observation is not a model decision.
+In the single-aircraft baseline, an in-flight request is allowed to finish within the client's shutdown wait. Its response is recorded with `applied=false` and `reason="episode ended"`; it does not extend flight or execute another action. An unstarted waiting observation is not a model decision. Fleet logs contain responses drained while the episode is active; a request completing during shutdown is not executed and may be absent from the final decision log.
 
 ## Inspect one case
 
@@ -41,8 +45,8 @@ PY
 These logs preserve the evidence required to curate training samples; they are not automatically expert demonstrations or a ready-made trainer-specific dataset.
 
 1. Select observable `state` and the matching questions from `policy.json` as the input. Do not copy referee coordinates into a camera-only decision prompt.
-2. Generate verified action labels independently—through reviewed successful segments, an explicit expert labeler or carefully defined counterfactual evaluation. An episode with ten hits can still contain bad decisions.
-3. Preserve the six candidate keys and physical effects. Do not merge historical `hold`, 15° turns or different altitude steps as if they had identical semantics.
+2. Generate verified action labels independently—through reviewed successful segments, an explicit expert labeler or carefully defined counterfactual evaluation. An episode with thirty hits can still contain bad decisions.
+3. Preserve each role’s candidate keys and execution semantics; P-04 has rescue/self_rescue instead of fire. Do not merge historical `hold`, 15° turns or different altitude steps as if they had identical semantics.
 4. Keep failed cases for diagnosis, preference comparisons or a separately designed reward signal. Failure does not tell you which alternative action was correct.
 5. Split by whole episode and scenario seed. Neighboring frames from the same chase must not leak across training and evaluation sets.
 6. Export to the chosen training runtime's schema only after choosing a training method. No model parameter fine-tuning is performed by this repository.

@@ -19,10 +19,14 @@ MJ_GEOM = mujoco.mjtObj.mjOBJ_GEOM
 class Pilot:
     """Cascaded velocity -> attitude -> motor-thrust controller."""
 
-    def __init__(self, model):
+    def __init__(self, model, own_body="x2", actuator_ids=None):
         self.m = model
-        self.mass = float(model.body_subtreemass[model.body("x2").id])
-        self.inertia = model.body_inertia[model.body("x2").id].copy()
+        self.body_id = model.body(own_body).id
+        joint = model.body_jntadr[self.body_id]
+        self.dof = int(model.jnt_dofadr[joint])
+        self.actuator_ids = list(range(4)) if actuator_ids is None else list(actuator_ids)
+        self.mass = float(model.body_subtreemass[self.body_id])
+        self.inertia = model.body_inertia[self.body_id].copy()
         self.kv = np.array([2.6, 2.6, 4.0])          # velocity -> accel
         self.kR = self.inertia * 190.0               # (unused; kept for reference)
         # Quaternion error is ~theta/2 where the geometric one was ~theta, so 2x the
@@ -36,6 +40,7 @@ class Pilot:
         self.airmode = True           # torque-priority mixing; see _mix below
         self.b3_rate = np.deg2rad(10000.0) # attitude-target slewing destabilises it
         self.recovering = False
+        self.recovery_requested = False
         self.b3_prev = None
         self.v_cmd = np.zeros(3)
         # thrust-mixing matrix: [Fz, Mx, My, Mz] = MIX @ f
@@ -45,12 +50,12 @@ class Pilot:
             [0.14,   0.14,  -0.14,  -0.14],
             [-0.0201, 0.0201, -0.0201, 0.0201],
         ]))
-        self.f_max = float(model.actuator_ctrlrange[0, 1])
+        self.f_max = float(model.actuator_ctrlrange[self.actuator_ids[0], 1])
 
     def __call__(self, data, v_des, yaw_des, dt=0.002):
-        R = data.xmat[self.m.body("x2").id].reshape(3, 3)
-        v = data.qvel[0:3]
-        w = data.qvel[3:6]                            # body frame
+        R = data.xmat[self.body_id].reshape(3, 3)
+        v = data.qvel[self.dof:self.dof+3]
+        w = data.qvel[self.dof+3:self.dof+6]           # body frame
 
         # A step change in the velocity command demands a step change in attitude,
         # which saturates the motors and tumbles the aircraft. Ramp it instead.
@@ -67,11 +72,18 @@ class Pilot:
         # thing free-falls inverted with no way back. Past ~55 deg, abandon the
         # translation command and prioritise getting the thrust axis upright again.
         tilt = float(np.arccos(np.clip(R[2, 2], -1.0, 1.0)))
+        if self.recovery_requested or tilt > np.deg2rad(70):
+            self.recovering = True
+        elif tilt < np.deg2rad(25):
+            self.recovering = False
         # Latched recovery: past 70 deg abandon the translation command entirely and
         # fly wings-level until back under 30 deg. Blending proportionally is not
         # enough -- the aircraft keeps being asked to accelerate sideways while it is
         # trying to right itself, and it carries on over the top.
         give_up = float(np.clip((tilt - np.deg2rad(55.0)) / np.deg2rad(25.0), 0.0, 1.0))
+        if self.recovering:
+            give_up = 1.
+            self.v_cmd[:2] = 0.
         a_h = a_h * (1.0 - give_up)
 
         # A quadrotor cannot thrust downward. On a hard commanded descent a[2]+G
@@ -181,7 +193,7 @@ class Eye:
 
     def __init__(self, model, target_body="rover", ignore_below=IGNORE_BELOW_DEFAULT,
                  floor_geom="floor", shell=(), threat_fov=None, n_sectors=None,
-                 walls=(), ignore_geoms=()):
+                 walls=(), ignore_geoms=(), own_body="x2"):
         self.ignore_below = ignore_below
         # The tunnel shell is the environment, not an obstacle. Reported separately
         # as clearances, or it swamps every sector and the scene says nothing.
@@ -204,7 +216,7 @@ class Eye:
         self.floor_id = model.geom(floor_geom).id
         self.ignore_ids = np.array([model.geom(name).id for name in ignore_geoms], dtype=int)
         # the camera sits inside the airframe: never mistake ourselves for an obstacle
-        self.self_geoms = np.nonzero(model.geom_bodyid == model.body("x2").id)[0]
+        self.self_geoms = np.nonzero(model.geom_bodyid == model.body(own_body).id)[0]
         fovy = np.deg2rad(self.EYE_FOVY)
         self.tan_h = np.tan(fovy / 2) * self.W / self.H   # horizontal half-fov
         self.hfov_deg = np.rad2deg(np.arctan(self.tan_h)) * 2

@@ -23,9 +23,14 @@ def main() -> int:
     parser.add_argument("--seconds", type=float, default=float(os.environ.get("EPISODE_SECONDS", 120)))
     parser.add_argument("--seed", type=int, default=int(os.environ.get("START_SEED", 1200)))
     parser.add_argument("--no-viewer", action="store_true", help="Collect data without a browser server")
+    parser.add_argument("--drones", type=int, choices=(1, 2, 4),
+                        default=int(os.environ['FLEET_COUNT']) if os.environ.get('FLEET_COUNT') else None,
+                        help="Initial pursuer count; otherwise reuse the saved UI selection")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
+    if args.drones is not None and args.drones not in (1, 2, 4):
+        parser.error("FLEET_COUNT must be 1, 2 or 4")
     data = Path(os.environ.get("DATA_DIR", str(ROOT / "runs"))).expanduser().resolve()
     live, cases = data / "live", data / "cases"
     live.mkdir(parents=True, exist_ok=True)
@@ -36,6 +41,10 @@ def main() -> int:
     except BlockingIOError:
         print(f"An instance is already using {data}", file=sys.stderr)
         return 1
+    if args.drones is not None:
+        temporary = live / 'fleet.json.tmp'
+        temporary.write_text(json.dumps({'count': args.drones, 'focus': 0}))
+        temporary.replace(live / 'fleet.json')
     endpoint = os.environ.get("JEV_ENDPOINT", "http://127.0.0.1:8000/v1/systemone")
     health = endpoint.rsplit("/v1/", 1)[0] + "/health"
     try:

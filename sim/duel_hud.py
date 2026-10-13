@@ -12,15 +12,17 @@ class DuelHud(Hud):
     """Reuse the original lock-on effect, font, palette and animated bar style."""
 
     def _shot_effect(self, image, effect):
-        if not effect or effect["age_s"] > .7:
+        if not effect or effect["age_s"] > effect.get('display_duration_s',.7):
             return
         age = effect["age_s"]
         overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
         color = GREEN if effect["hit"] else ACCENT
+        duration=effect.get('display_duration_s',.7)
+        trace_duration=effect.get('trace_duration_s',.3)
         start, end = effect.get("start_xy"), effect.get("end_xy")
-        if effect["cooldown_ok"] and start and end and age < .3:
-            alpha = int(255*(1-age/.3))
+        if effect["cooldown_ok"] and start and end and age < trace_duration:
+            alpha = int(255*(1-age/trace_duration))
             draw.line((*start, *end), fill=color+(alpha//3,), width=13)
             draw.line((*start, *end), fill=color+(alpha,), width=4)
             draw.line((*start, *end), fill=(255, 255, 240, alpha), width=1)
@@ -29,14 +31,14 @@ class DuelHud(Hud):
                           start[1]+radius), outline=color+(alpha,), width=3)
         if effect["hit"] and end:
             radius = 14+age*65
-            alpha = int(255*(1-age/.7))
+            alpha = int(255*(1-age/duration))
             draw.ellipse((end[0]-radius, end[1]-radius, end[0]+radius,
                           end[1]+radius), outline=GREEN+(alpha,), width=3)
             for theta in np.linspace(0, 2*np.pi, 8, endpoint=False):
                 a = (end[0]+radius*np.cos(theta), end[1]+radius*np.sin(theta))
                 b = (end[0]+(radius+12)*np.cos(theta), end[1]+(radius+12)*np.sin(theta))
                 draw.line((*a, *b), fill=GREEN+(alpha,), width=2)
-        label = "HIT" if effect["hit"] else "NO HIT" if effect["cooldown_ok"] else "COOLDOWN"
+        label = 'NOT FIRED' if effect.get('blocked') else "HIT" if effect["hit"] else "NO HIT" if effect["cooldown_ok"] else "COOLDOWN"
         label_x, label_y = effect.get("label_xy", (24, 80))
         draw.rounded_rectangle((label_x, label_y, label_x+311, label_y+46), radius=6, fill=(8, 15, 22, 215),
                                outline=color+(220,), width=2)
@@ -140,7 +142,7 @@ class DuelHud(Hud):
         y += 7
         draw.line((x0, y, x0+width, y), fill=LINE)
         y += 10
-        draw.text((x0, y), f"hits {telemetry['hits']}/10   shots {telemetry['shots']}   rain x{telemetry['rain_factor']:.2f}",
+        draw.text((x0, y), f"hits {telemetry['hits']}/30   shots {telemetry['shots']}   rain x{telemetry['rain_factor']:.2f}",
                   font=font(11), fill=GREEN if telemetry["hits"] else DIM)
         y += 17
         draw.text((x0, y), f"calls {telemetry['calls']}   latency {telemetry['latency_s']:.2f}s   errors {telemetry['errors']}",
@@ -152,7 +154,7 @@ class DuelHud(Hud):
                   ("TARGET", f"{target['range_m']:.1f}m" if target["visible"] else "LOST"),
                   ("SPEED", f"{telemetry['speed_mps']:.1f}m/s"),
                   ("ALTITUDE", f"{telemetry['altitude_m']:.1f}m"),
-                  ("HITS", f"{telemetry['hits']}/10"),
+                  ("HITS", f"{telemetry['hits']}/30"),
                   ("CONTACTS", str(telemetry["collisions"])))
         xx = 22
         for label, value in fields:

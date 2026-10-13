@@ -1,4 +1,4 @@
-"""Text decisions from camera-derived state for the city pursuit."""
+"""Camera-only Jev decision interface for the city duel."""
 from __future__ import annotations
 
 import json
@@ -8,6 +8,8 @@ import threading
 import time
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from replay_store import HIT_GOAL
 
 ACTIONS = ("turn_left", "turn_right", "climb", "descend", "forward", "fire")
 TURN_DEG = 45.0
@@ -41,17 +43,21 @@ if POLICY_MODE == 'legacy':
     QUESTION = json.loads(Path(__file__).with_name('policy_camera6_v8.json').read_text())
     QUESTION['action']['instructions']['effects'] = QUESTION['action']['instructions']['effects'].replace('15deg', f'{TURN_DEG:g}deg')
 
+QUESTION['action']['instructions']['goal'] = QUESTION['action']['instructions']['goal'].replace(
+    '10 valid simulated hits', f'{HIT_GOAL} valid simulated hits')
+
 
 def describe_relative_target(target):
     """Read camera geometry in words; no eligibility flags or action suggestion."""
-    if not target.get('visible'):
+    if not target.get('visible') and not target.get('shared_available'):
         gap = target.get('unseen_for_s')
         return 'No current target observation.' + (f' Last seen {gap} seconds ago.' if gap is not None else '')
     bearing = float(target['bearing_deg'])
     height = float(target['relative_height_m'])
     side = 'left' if bearing > 0 else 'right' if bearing < 0 else 'ahead'
     vertical = 'higher' if height > 0 else 'lower' if height < 0 else 'at the same altitude'
-    return (f"Visible target is {target['range_m']} meters away, {abs(bearing)} degrees {side}, "
+    source = 'Camera-visible target' if target.get('visible') else 'Teammate-observed target'
+    return (f"{source} is {target['range_m']} meters away, {abs(bearing)} degrees {side}, "
             f"{abs(height)} meters {vertical} than our aircraft.")
 
 
@@ -62,7 +68,8 @@ def build_state(observed: dict, own: dict) -> dict:
               "range_m", "range_rate_mps", "bearing_rate_deg_s",
               "elevation_rate_deg_s", "unseen_for_s", "relative_position_m",
               "relative_velocity_mps", "track_confidence", "position_uncertainty_m", "aim",
-              "camera", "front_visible", "search_memory")
+              "camera", "front_visible", "search_memory", "shared_available",
+              "observation_sources", "observation_age_s", "information_source")
     seen = {k: target.get(k) for k in fields}
     trajectory = target.get('trajectory')
     if trajectory and len(trajectory['history']) >= 3:
@@ -75,7 +82,7 @@ def build_state(observed: dict, own: dict) -> dict:
     seen['pursuit_uncertainty_m'] = pursuit.get('uncertainty_m') if pursuit else None
     predicted_height = (predictions[0]['relative_xyz_m'][2]-own['velocity_body_mps'][2]*(seen.get('aim') or {}).get('horizon_s',0)) if predictions and predictions[0]['confidence'] >= .2 else (seen.get('aim') or {}).get('height_m')
     seen['predicted_height_1s_m'] = round(predicted_height,2) if predicted_height is not None else None
-    seen['track_status'] = ('visible' if target['visible'] else
+    seen['track_status'] = ('visible' if target['visible'] else 'shared' if target.get('shared_available') else
                             'brief_occlusion' if target.get('aim') and target.get('track_confidence', 0) > .3 else 'lost')
     if not target["visible"] and target.get("last_seen"):
         seen["last_seen"] = {k: target["last_seen"].get(k) for k in
@@ -125,12 +132,15 @@ def build_state(observed: dict, own: dict) -> dict:
         "rain_visible_from_camera": bool(observed.get("rain_visible", False)),
         "peripheral_free_space_from_camera_m": observed.get('peripheral_space', {}),
         "navigation_from_camera": navigation,
+        **({'team_communication': observed['team']} if 'team' in observed else {}),
     }
 
 
 class JevWorker:
-    def __init__(self, endpoint: str, hz: float = 3.0):
+    def __init__(self, endpoint: str, hz: float = 3.0, questions=None, request_lock=None):
         self.endpoint = endpoint
+        self.questions = QUESTION if questions is None else questions
+        self.request_lock = request_lock or threading.Lock()
         self.model = MODEL_NAME
         self.backend = 'neohorse'
         self.input_mode = 'text'
@@ -139,6 +149,7 @@ class JevWorker:
         self._out = queue.Queue()
         self._stop = threading.Event()
         self._sent_wall = 0.0
+        self._waiting = False
         self.calls = self.errors = 0
         self.abstentions = 0
         self.last_error = None
@@ -147,17 +158,18 @@ class JevWorker:
 
     def offer(self, state: dict, sim_time: float) -> None:
         now = time.monotonic()
-        if now - self._sent_wall < self.interval:
+        if now - self._sent_wall < self.interval and not self._waiting and not self._in.full():
             return
         try:
             state = state() if callable(state) else state
             if self._in.full():
-                # Refresh only the waiting observation, never a model result.
+                # Replace only the waiting observation, never a model result.
+                # A slow request must not make the next request use an old frame.
                 try:
                     self._in.get_nowait()
                 except queue.Empty:
                     pass
-            self._in.put_nowait((state, sim_time))
+            self._in.put_nowait((state, sim_time, now))
             self._sent_wall = now
         except queue.Full:
             pass
@@ -173,12 +185,29 @@ class JevWorker:
     def _loop(self) -> None:
         while not self._stop.is_set():
             try:
-                state, sim_time = self._in.get(timeout=.2)
+                state, sim_time, captured_wall = self._in.get(timeout=.2)
             except queue.Empty:
                 continue
+            self._waiting = True
+            while not self._stop.is_set():
+                if self.request_lock.acquire(timeout=.2):
+                    break
+            else:
+                return
+            # Once our turn arrives, use the most recent queued observation.
+            while True:
+                try:
+                    state, sim_time, captured_wall = self._in.get_nowait()
+                except queue.Empty:
+                    break
             started = time.monotonic()
+            self._waiting = False
             try:
-                value = {"model": self.model, "state": state, "questions": QUESTION}
+                if self._stop.is_set():
+                    return
+                questions = self.questions
+                allowed_actions = tuple(questions['action']['criteria'])
+                value = {"model": self.model, "state": state, "questions": questions}
                 body = json.dumps(value).encode()
                 headers = {"Content-Type": "application/json"}
                 if os.environ.get('JEV_API_KEY'):
@@ -188,7 +217,7 @@ class JevWorker:
                     payload = json.load(response)
                 answer = payload["answers"]["action"]
                 action = answer["choice"]
-                if action is not None and action not in ACTIONS:
+                if action is not None and action not in allowed_actions:
                     raise ValueError(f"invalid action: {action!r}")
                 self.calls += 1
                 record = {"policy_version": POLICY_VERSION, "model_name": self.model,
@@ -197,7 +226,10 @@ class JevWorker:
                           "native_abstain_probability": answer.get('abstain'),
                           "native_valid": answer.get('valid'),
                                "confidence": answer.get("confidence"), "state": state,
-                               "sim_time": sim_time, "latency_s": round(time.monotonic()-started, 3)}
+                               "allowed_actions": list(allowed_actions), "role_version": state.get('role_version'),
+                               "sim_time": sim_time, "latency_s": round(time.monotonic()-started, 3),
+                               "queue_wait_s": round(started-captured_wall, 3),
+                               "total_latency_s": round(time.monotonic()-captured_wall, 3)}
                 if action is None:
                     self.abstentions += 1
                     record['abstained'] = True
@@ -206,12 +238,13 @@ class JevWorker:
                 self._out.put(record)
             except Exception as exc:
                 self.errors += 1
-                self.last_error = f"{type(exc).__name__}: {exc}"[:180]
+                detail = exc.read(500).decode(errors='replace') if isinstance(exc, HTTPError) else ''
+                self.last_error = f"{type(exc).__name__}: {exc} {detail}".strip()[:600]
                 self._out.put({"error": self.last_error, "state": state,
                                "sim_time": sim_time, "latency_s": round(time.monotonic()-started, 3)})
+            finally:
+                self.request_lock.release()
 
     def close(self) -> None:
         self._stop.set()
-        # HTTP timeout is 12 s. Allow it to finish so the episode can log the
-        # final response instead of losing it at process exit.
         self.thread.join(timeout=14)

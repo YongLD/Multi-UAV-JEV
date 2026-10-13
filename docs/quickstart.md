@@ -41,7 +41,7 @@ The runner fails early if the health endpoint is unavailable. A failing request 
 ## 3. Run and view
 
 ```bash
-bash run.sh
+bash run.sh --drones 4
 ```
 
 Open `http://127.0.0.1:8080`. The viewer binds to loopback. Mouse drag changes the third-person viewing offset; the camera keeps following the pursuer's heading. The wheel changes zoom; double click restores alignment. The small overview stays north-up. These viewing controls never alter model observations.
@@ -70,6 +70,7 @@ Open `http://127.0.0.1:8080` locally. If this local port is occupied, forward an
 | --- | --- | --- |
 | `JEV_ENDPOINT` | `http://127.0.0.1:8000/v1/systemone` | Decision endpoint. |
 | `JEV_MODEL` | `NeoHorse-Jev-4B` | Model name in requests. |
+| `FLEET_COUNT` | blank | Initial 1/2/4 count; blank preserves saved selection. CLI `--drones` overrides it. |
 | `JEV_API_KEY` | empty | Optional Bearer token; never written to episode logs. |
 | `VIEW_PORT` | `8080` | Local viewer port. |
 | `DATA_DIR` | `./runs` | Live artifacts and archived cases. |
@@ -87,6 +88,10 @@ Use a distinct data directory and viewer port for another instance. A lock preve
 - **401 from the model:** set `JEV_API_KEY` to the server's configured token.
 - **429/529:** the inference worker is busy. Use one simulation per native model service for a meaningful performance run.
 - **422:** check the model name, runtime version and payload/token budget. The full structured state can be large; this project does not silently truncate it.
-- **No replay:** only completed episodes with ≥5 hits and ≥the previous best qualify. Short verification runs often produce no replay.
+- **No replay:** only completed episodes with ≥5 hits and a top-two score in their fleet-size group qualify. Short verification runs often produce no replay.
 - **Viewer port already used:** change `VIEW_PORT`; the runner rejects a conflict instead of attaching to unrelated data.
 - **Tracking loss / contact:** inspect the model state, latency and action log. The baseline does not guarantee successful pursuit or collision avoidance.
+
+## Fleet controls
+
+Use `--drones 1`, `--drones 2` or `--drones 4`, or the browser selector. Changing count restarts the episode; focusing or enlarging a camera does not. Replay preserves full HUDs at 20 FPS. Live monitors publish at 5 updates per simulated second. See [the fleet guide](multi-uav.md).

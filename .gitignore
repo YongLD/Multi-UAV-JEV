@@ -26,3 +26,6 @@ __pycache__/
 *.pth
 *.onnx
 *.sqlite*
+
+sim/fleet_x2_*.xml
+sim/city_fleet_*.xml

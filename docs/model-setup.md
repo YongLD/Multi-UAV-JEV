@@ -55,6 +55,6 @@ The Jev client sends this structure (state values below are abbreviated, not a r
 }
 ```
 
-It expects `answers.action.choice` and `answers.action.probabilities`. A choice must be one of the six action keys; an explicit null choice is recorded as an abstention. No image field is sent. See [sim/duel_tactics.py](../sim/duel_tactics.py) for the complete client.
+It expects `answers.action.choice` and `answers.action.probabilities`. A choice must be one of the submitted role’s candidate keys (six for pursuers; seven for P-04, including rescue/self_rescue and excluding fire); an explicit null choice is recorded as an abstention. No image field is sent. See [sim/duel_tactics.py](../sim/duel_tactics.py) for the complete client.
 
 The runtime's `confidence` is a distribution statistic. It is not an independently calibrated probability that the maneuver will succeed, and it is not used to replace the model's selected action.

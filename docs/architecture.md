@@ -1,5 +1,7 @@
 # Architecture and observation boundary
 
+This release adds 2/4-aircraft cooperative pursuit to the single-aircraft baseline below. Each physical pursuer owns independent joints, motors, camera observations and a decision worker. [The fleet guide](multi-uav.md) describes observation fusion, role missions, 50 Hz final safety, rescue and synchronized recordings. Shared tracks remain camera-derived; they never turn teammate visibility into local visibility.
+
 ## Runtime layers
 
 1. **Scene and evader.** `urban_scene.py` builds a waterfront district. `Evader` in `duel.py` generates random starting points, turns, speed changes and smooth altitude changes. It uses scene geometry to generate its own motion. It is kinematically moved, unlike the physically simulated pursuer.
@@ -31,9 +33,9 @@ The local navigation grid covers seven horizontal bearings at three height layer
 
 ## Scheduling and control limits
 
-Physics uses 0.002 s steps. Perception runs approximately every 0.066 simulated seconds. The Jev worker admits observations at up to 3 wall-clock Hz, serializes requests, and refreshes only the waiting observation if newer evidence arrives. It never rewrites a completed model choice. Actual decision frequency depends on inference and rendering time.
+Physics uses 0.002 s steps. Single-aircraft perception runs approximately every 0.066 simulated seconds; fleet perception runs every 0.15 s. Fleet navigation and final safety run every 0.02 s. Workers share a serialized endpoint lock and refresh the latest waiting observation when admitted. Actual decision frequency depends on inference, rendering and queue time.
 
-A response older than 1.2 simulated seconds is logged but not executed. Errors and abstentions do not invoke a scripted tactical replacement; the previous controller setpoints continue until a new action arrives.
+A response older than 1.2 simulated seconds in the single baseline, or 0.8 s in the fleet, is logged but not executed. Errors and abstentions are recorded without fabricating a model choice. Single-aircraft setpoints continue; fleet role navigation, safety and automatic recovery continue independently of the model.
 
 The model does not choose acceleration or braking actions in this release. The controller limits speed using depth clearance, reaction delay, a braking estimate, camera-estimated target range/range rate and rain reduction. It can bring translation speed down to zero near obstacles. Altitude setpoints for climb/descend are bounded to 3–36 m. These execution constraints are visible parts of the architecture, not evidence of unconstrained model flight.
 

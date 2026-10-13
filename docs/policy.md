@@ -10,6 +10,10 @@ Print the exact current request question, without loading a model:
 
 Each actual episode writes the resolved question, actions, turn angle and mode to `runs/live/policy.json` and archives it in its case folder. That is the authoritative prompt for an experiment.
 
+## Fleet role questions
+
+For 2/4 aircraft, `sim/role.md` supplies role instructions and candidate conditions; `fleet_roles.py` validates and reloads them. The first three roles have five flight actions plus `fire`; P-04 has five flight actions, `rescue` and `self_rescue`, without `fire`. Inspect per-episode `policy.json` and the role version. Fleet flight choices are tactical intents; mission navigation and final depth/peer constraints govern actual movement. Rescue and self-rescue controller events can occur independently of model latency. [Detailed rules and recovery bounds](multi-uav.md).
+
 ## Policy modes
 
 | Mode | Candidate descriptions |
@@ -23,7 +27,7 @@ Each actual episode writes the resolved question, actions, turn angle and mode t
 
 ## Mission and rules
 
-The prompt asks the model to close on E-01 and obtain ten valid virtual hits. It explains sign conventions, height alignment, firing geometry and cooldown, observed depth risk, short occlusion prediction and future pursuit bearing. It tells the model that speed/braking are managed by the controller and rain slows flight.
+The prompt asks the model to close on E-01 and obtain thirty valid virtual hits. It explains sign conventions, height alignment, firing geometry and cooldown, observed depth risk, short occlusion prediction and future pursuit bearing. It tells the model that speed/braking are managed by the controller and rain slows flight.
 
 No candidate probability is modified after the model returns. A valid fresh choice is applied as returned. A response can be recorded without execution if it is stale, malformed, failed or explicitly abstained.
 
@@ -47,4 +51,4 @@ The referee uses simulation truth solely for evaluation:
 - Absolute altitude difference ≤1 m.
 - At least 2 simulated seconds since the last cooldown-eligible attempt.
 
-There is no additional occlusion/line-of-sight test in the current hit function. The policy asks to fire at a visible target, but that instruction is not an extra referee gate. Ten valid hits end the episode. This is a virtual interaction; no physical weapon or real drone integration is included.
+The single-aircraft referee has no additional line-of-sight geometry test. Fleet execution additionally requires healthy state, fresh local visibility and camera-estimated firing geometry; shared visibility alone does not authorize fire. Thirty team hits end the episode. This is a virtual interaction; no physical weapon or real drone integration is included.

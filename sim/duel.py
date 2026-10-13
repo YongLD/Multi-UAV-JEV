@@ -20,13 +20,14 @@ from duel_hud import DuelHud
 from duel_tactics import ACTIONS, TURN_DEG, QUESTION, POLICY_VERSION, POLICY_MODE, JevWorker, build_state
 from flight import Eye, Pilot
 from camera_controls import DEFAULT_CAMERA, validate_camera
+from replay_store import HIT_GOAL, REPLAY_FPS, retain_single_replay
+from fleet_visuals import shot_status, prefer_active_shot
 from onboard_safety import DepthSafety, BRAKE_ACCEL, MARGIN
 from onboard_target import CameraTargetTrack, aim_at_execution, pursuit_point_at_execution, rotate as rotate_target
 
 ROOT = Path(__file__).resolve().parent
 ROUTE = [(27, 0), (45, 0), (45, 45), (0, 45), (-45, 45), (-45, 0),
          (0, 0), (0, -45), (45, -45), (45, 0), (0, 0), (-45, 0)]
-REPLAY_FPS = 20
 SHOT_RANGE_M = 25.0
 SHOT_HEIGHT_M = 1.0
 SHOT_BEARING_DEG = 40.0
@@ -58,6 +59,8 @@ class DuelEye(Eye):
             self.safety = DepthSafety(self.EYE_FOVY, self.TILT_DEG, self.NOSE_OFFSET_M, self.MAX_RANGE)
         ignored = np.concatenate([self.target_ids, self.self_geoms, self.ignore_ids])
         self.safety.observe(self.last_depth, self.last_segmentation, ignored)
+        self.safety_views = [{'safety': self.safety, 'position': np.array(pos), 'yaw': yaw, 'time': t, 'name': 'front'}]+[
+            view for view in getattr(self, 'safety_views', []) if view['name'] != 'front' and t-view['time'] <= .45]
         scene['observed_clearance'] = {label: self.safety.grid[label][3]['clearance_m']
                                        for label in ('above', 'level', 'below')}
         if not hasattr(self, 'target_track'):
@@ -85,6 +88,8 @@ class DuelEye(Eye):
                 # Peripheral clearance summaries are also measured, never a map lookup.
                 camera_safety = DepthSafety(self.EYE_FOVY, self.TILT_DEG, self.NOSE_OFFSET_M, self.MAX_RANGE)
                 camera_safety.observe(np.clip(candidate_depth, 0, self.MAX_RANGE), candidate_seg, ignored)
+                self.safety_views = [view for view in self.safety_views if view['name'] != name]
+                self.safety_views.append({'safety':camera_safety,'position':np.array(pos),'yaw':yaw+camera_offset,'time':t,'name':name})
                 self.peripheral[name] = {'age_s': 0., 'observed_at_s': t,
                     'ahead_above_m': camera_safety.grid['above'][3]['clearance_m'],
                     'ahead_level_m': camera_safety.grid['level'][3]['clearance_m'],
@@ -129,25 +134,8 @@ def publish(path, obj):
 
 
 def retain_best_replay(live_dir, video_tmp, summary):
-    """Keep a replay with >=5 hits and >=the retained hit count; accept ties."""
-    video = live_dir/"replay.mp4"
-    metadata = live_dir/"replay_summary.json"
-    best_hits = 0
-    if video.is_file() and metadata.is_file():
-        try:
-            best_hits = int(json.loads(metadata.read_text(encoding="utf-8"))["hits"])
-        except (ValueError, KeyError, TypeError):
-            pass
-    if best_hits < 5:
-        video.unlink(missing_ok=True)
-        metadata.unlink(missing_ok=True)
-        best_hits = 0
-    if summary["hits"] >= 5 and summary["hits"] >= best_hits:
-        video_tmp.replace(video)
-        publish(metadata, summary)
-        return True
-    video_tmp.unlink(missing_ok=True)
-    return False
+    """Compatibility wrapper: retain one of the two highest-hit episodes per fleet size."""
+    return retain_single_replay(live_dir,video_tmp,summary)
 
 
 def camera_blocked(aircraft, camera_pos, buildings=BUILDINGS, *, model=None, data=None):
@@ -268,7 +256,8 @@ class ActionController:
         # Jev still picks every heading, altitude and fire action. Slowing does
         # not pick a different maneuver; it gives that maneuver time to work.
         target = scene["target"] if scene else {}
-        distance = target.get("range_m") if target.get("visible") else None
+        usable_track = target.get('visible') or (target.get('shared_available') and target.get('observation_age_s',100)<=.5 and target.get('track_confidence',0)>=.3)
+        distance = target.get("range_m") if usable_track else None
         cruise = 6.3
         if distance is not None and target.get('range_rate_mps') is not None:
             body_velocity = scene.get('own_velocity_body_mps', [0., 0., 0.])
@@ -297,6 +286,12 @@ class ActionController:
 
 
 def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
+    if urban:
+        from fleet_config import read_config
+        count = read_config(live_dir)['count']
+        if count > 1:
+            from fleet_sim import run_fleet
+            return run_fleet(seconds, seed, live_dir, endpoint, count, realtime)
     if urban:
         from urban_scene import write_city_xml as write_urban_xml, BUILDINGS as view_buildings
         from urban_hud import UrbanHud, decorate_overview
@@ -335,6 +330,7 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
     if reset_replay.exists():
         old_replay.unlink(missing_ok=True)
         old_metadata.unlink(missing_ok=True)
+        (live_dir/'replay_catalog.json').unlink(missing_ok=True)
         reset_replay.unlink(missing_ok=True)
     try:
         old_hits = int(json.loads(old_metadata.read_text(encoding="utf-8"))["hits"])
@@ -383,6 +379,7 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
     last_decision = None
     latest_navigation = None
     visual_shot = None
+    last_shot_attempt = None
     collisions = 0
     contacts = set()
     next_frame = 0.
@@ -461,8 +458,9 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
                         start = pos + .7*np.array([math.cos(yaw), math.sin(yaw), 0.])
                         end = enemy.pos.copy() if shot["hit"] else start + SHOT_RANGE_M*np.array(
                             [math.cos(yaw), math.sin(yaw), 0.])
-                        visual_shot = {"time_s": t, "start": start, "end": end,
-                                       "number": action_ctrl.shots, **shot}
+                        last_shot_attempt = {"time_s": t, "start": start, "end": end,
+                                             "number": action_ctrl.shots, **shot}
+                        visual_shot = prefer_active_shot(visual_shot,last_shot_attempt,t)
                         event_log.write(json.dumps({"time_s": round(t, 3), "type": "shot", **shot})+"\n")
                         event_log.flush()
                 else:
@@ -563,7 +561,9 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
                     enemy_xy = (view_w/2+float(relative@right)/camera_range*focal,
                                 view_h/2-float(relative@up)/camera_range*focal)
                 roll, pitch, yaw_rate = attitude(data.qpos[3:7], data.qvel[3:6])
-                status = {"running": True, "time_s": round(t, 2), "hits": action_ctrl.hits,
+                status = {"running": True, "fleet_count": 1, "focused_drone_id": "P-01", "focus": 0, "hit_goal": HIT_GOAL,
+                          'shot_status':shot_status(visual_shot,t,last_shot_attempt),
+                          "time_s": round(t, 2), "episode_limit_s":seconds, "replay_fps":REPLAY_FPS, "hits": action_ctrl.hits,
                           "shots": action_ctrl.shots, "action": action_ctrl.last_action,
                           "speed_mps": round(float(np.linalg.norm(data.qvel[:3])), 2),
                           "altitude_m": round(float(pos[2]), 2), "calls": worker.calls,
@@ -615,7 +615,7 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
                                      'horizon_s': p['horizon_s'], 'confidence': p['confidence']}
                                     for p in trajectory['predictions']]
                     telemetry['trajectory_overlay'] = {'history_xy': history_xy, 'predicted_xy': predicted_xy}
-                if visual_shot and t-visual_shot["time_s"] <= .7:
+                if visual_shot and t-visual_shot["time_s"] <= 1.2:
                     def project(point):
                         relative = np.asarray(point)-np.asarray(cam.pos)
                         distance = float(relative@forward)
@@ -625,6 +625,7 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
                         return (view_w/2+float(relative@right)/distance*focal,
                                 view_h/2-float(relative@up)/distance*focal)
                     telemetry["shot_effect"] = {
+                        'display_duration_s':1.2,'trace_duration_s':.45,
                         "age_s": t-visual_shot["time_s"], "number": visual_shot["number"],
                         "hit": visual_shot["hit"], "cooldown_ok": visual_shot["cooldown_ok"],
                         "start_xy": project(visual_shot["start"]),
@@ -658,8 +659,8 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
                 tmp.write_bytes(memory.getvalue())
                 tmp.replace(live_dir/"frame.jpg")
                 publish(live_dir/"status.json", status)
-                next_frame = t+1/REPLAY_FPS
-            if action_ctrl.hits >= 10:
+                next_frame += 1/REPLAY_FPS
+            if action_ctrl.hits >= HIT_GOAL:
                 output = "success"
                 break
             if data.qpos[2] < .2:
@@ -684,7 +685,8 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
     if urban:
         rgb_renderer.close()
         top_renderer.close()
-    summary = {"outcome": output, "time_s": round(t, 2), "hits": action_ctrl.hits,
+    summary = {"outcome": output, "fleet_count": 1, "time_s": round(t, 2), "hits": action_ctrl.hits, "hit_goal": HIT_GOAL,
+               "episode_limit_s":seconds,"replay_fps":REPLAY_FPS,
                "shots": action_ctrl.shots, "collisions": collisions, "action_counts": dict(counts),
                "jev_calls": worker.calls, "jev_errors": worker.errors,
                "records": str(records), "events": str(events), "referee": str(referee),
@@ -699,6 +701,8 @@ def run(seconds, seed, live_dir, endpoint, realtime=True, urban=False):
     summary["replay_retained"] = retain_best_replay(live_dir, video_tmp, summary)
     publish(live_dir/"summary.json", summary)
     status["running"] = False
+    status['hits'] = summary['hits']
+    status['time_s'] = summary['time_s']
     status["summary"] = summary
     publish(live_dir/"status.json", status)
     print(json.dumps(summary, ensure_ascii=False), flush=True)

@@ -71,7 +71,7 @@ class UrbanHud(DuelHud):
                 d.rounded_rectangle((x, y, x+max(2, w*min(value, 1)), y+h), radius=2, fill=color+(240,))
 
         panel(16, 16, 214, 239)
-        text(30, 28, 'P-01 / FLIGHT INSTRUMENTS', 10, CYAN, True)
+        text(30, 28, telemetry.get('focused_drone_id', 'P-01')+' / FLIGHT INSTRUMENTS', 10, CYAN, True)
         text(28, 49, f"{telemetry['altitude_m']:.1f}", 38, TEXT, True)
         text(149, 76, 'm AGL', 11, DIM)
         text(30, 104, f"SPEED {telemetry['speed_mps']:.1f} m/s", 12)
@@ -80,12 +80,14 @@ class UrbanHud(DuelHud):
         text(30, 169, f"ROLL {telemetry.get('roll_deg', 0):+.0f}   PITCH {telemetry.get('pitch_deg', 0):+.0f}", 10, DIM)
         bar(30, 198, 185, 6, min(telemetry['speed_mps']/8, 1), CYAN)
         text(30, 215, f"RAIN x{telemetry['rain_factor']:.2f}   CONTACTS {telemetry['collisions']}", 10, DIM)
+        if telemetry.get('self_rescue'):
+            text(30,236,'SELF RESCUE: '+telemetry['self_rescue']['state'].upper(),9,ACCENT)
         panel(447, 16, 387, 33)
-        text(461, 26, 'MULTI-UAV JEV / WATERFRONT PURSUIT', 13, TEXT, True)
+        text(461, 26, 'JEV SKYWAYS / WATERFRONT PURSUIT', 13, TEXT, True)
         panel(990, 16, 274, 95)
         text(1006, 29, 'FLIGHT SESSION', 10, DIM, True)
-        text(1006, 52, telemetry.get('model_name', 'NeoHorse-Jev-4B')+' / LIVE', 13, CYAN, True)
-        text(1006, 81, 'RGB + DEPTH STATE' if telemetry.get('model_input_mode')=='rgb' else 'ONBOARD TEXT STATE', 10, DIM)
+        text(1006, 52, telemetry.get('model_name', 'NeoHorse-Jev-4B')+' / '+telemetry.get('display_mode','LIVE'), 13, CYAN, True)
+        text(1006, 81, f"{telemetry.get('fleet_count', 1)} PURSUERS / TEAM HITS {telemetry['team_hits']}/30" if 'team_hits' in telemetry else f"{telemetry.get('fleet_count', 1)} PURSUERS / SHARED CAMERA TRACK", 10, DIM)
         panel(990, 124, 274, 237)
         text(1006, 138, 'ONBOARD / FRONT / RGB + DEPTH', 10, CYAN, True)
         image.alpha_composite(overlay)
@@ -100,6 +102,8 @@ class UrbanHud(DuelHud):
         for i, distance in enumerate(scene['sector_range_m'].values()):
             bar(1006+i*49, 309, 40, 7, distance/70, RED if distance < 4 else ACCENT if distance < 20 else CYAN)
         text(1006, 329, 'L2    L1    FRONT    R1    R2', 10, DIM)
+        if telemetry.get('sensor_age_s') is not None:
+            text(1006, 346, f"SENSOR AGE {telemetry['sensor_age_s']:.2f}s / SIM TIME", 9, DIM)
         panel(16, 377, 278, 326)
         text(31, 393, 'JEV / ALL ACTIONS', 11, CYAN, True)
         text(191, 395, 'P / COUNT', 9, DIM)
@@ -107,16 +111,17 @@ class UrbanHud(DuelHud):
         total = max(sum(counts.values()), 1)
         probabilities = decision.get('probabilities') or {}
         colors = (CYAN, CYAN, (161, 148, 238), (161, 148, 238), GREEN, RED)
-        for i, action in enumerate(ACTIONS):
+        actions = telemetry.get('allowed_actions',ACTIONS)
+        for i, action in enumerate(actions):
             y = 418+i*26
-            selected = action == decision.get('action')
+            selected = action == telemetry.get('action',decision.get('action'))
             text(31, y, action.replace('_', ' '), 11, TEXT if selected else DIM, selected)
             value = float(probabilities.get(action, 0))
-            bar(120, y+5, 75, 6, value, colors[i])
-            text(202, y, f'{value*100:2.0f}% / {counts[action]}', 10, TEXT if selected else DIM)
-        text(31, 610, 'TASK SHARE: '+ ' / '.join(f'{counts[a]/total*100:.0f}' for a in ACTIONS), 9, DIM)
+            bar(120, y+5, 75, 6, value, ACCENT if action=='self_rescue' else GREEN if action=='rescue' else colors[i])
+            text(202, y, f'{value*100:2.0f}% / {counts.get(action,0)}', 10, TEXT if selected else DIM)
+        text(31, 610, 'TASK SHARE: '+ ' / '.join(f'{counts.get(a,0)/total*100:.0f}' for a in actions), 9, DIM)
         text(31, 635, f"{telemetry['calls']} CALLS   {telemetry['latency_s']*1000:.0f}ms   {telemetry['errors']} ERR", 10)
-        text(31, 659, f"HITS {telemetry['hits']}/10   SHOTS {telemetry['shots']}", 14, GREEN, True)
+        text(31, 659, f"HITS {telemetry['hits']}/30   SHOTS {telemetry['shots']}", 14, GREEN, True)
         panel(714, 583, 232, 120)
         text(730, 598, 'EPISODE METRICS', 10, DIM, True)
         text(730, 622, f"{telemetry['time_s']:.1f}s   {telemetry.get('distance_flown_m', 0):.0f}m flown", 12)
@@ -124,12 +129,14 @@ class UrbanHud(DuelHud):
         text(730, 670, f"{telemetry['collisions']} contacts / rain x{telemetry['rain_factor']:.2f}", 10, DIM)
         panel(962, 477, 302, 226)
         text(978, 491, 'DISTRICT OVERVIEW / REFEREE', 10, DIM, True)
+        if telemetry.get('overview_age_s') is not None:
+            text(1165,491,f"AGE {telemetry['overview_age_s']:.2f}s",9,DIM)
         image.alpha_composite(overlay)
         if overview is not None:
             image.paste(Image.fromarray(overview).resize((274, 156)), (976, 516))
         overlay = Image.new('RGBA', image.size)
         d = ImageDraw.Draw(overlay)
-        text(979, 684, 'P-01 ORANGE   E-01 RED   RAIN BLUE', 9, DIM)
+        text(979, 684, 'P-01 ORANGE   E-01 RED   RAIN BLUE' if telemetry.get('fleet_count',1)==1 else 'P1 ORANGE / P2 CYAN / P3 VIOLET / P4 GREEN', 9, DIM)
         image.alpha_composite(overlay)
         return np.asarray(image.convert('RGB'))
 
